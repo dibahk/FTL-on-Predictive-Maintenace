@@ -190,5 +190,6 @@ if __name__ == "__main__":
     from flwr.client import start_client
 
     start_client(
-        server
+        server = 
+        client = FlowerClient()
     )
