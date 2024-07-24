@@ -86,83 +86,82 @@ def evaluate_metric(model, data_iter, metric):
         c += metric(logits, y)
         n += len(y)
     return c*100 / n
+if __name__ == "__main__":
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="NASA_turbo_fan",
+        name= "with 50 data points_{}".format(date_time),
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": 0.0001,
+        "architecture": "CNN",
+        "epochs": 100,
+        "loss": nn.BCELoss(),
+        "batch_size": 64,
+        "decay":1e-5,
+        'dropout': 0.5
+        }
+    )
+    config = wandb.config
+    data_path = 'NASA_data_50.pt'
+    label_path = 'NASA_label_50.pt'
+    train_loader, test_loader = data_loading(data_path=data_path, label_path=label_path,batch_size= config.batch_size)
 
-wandb.init(
-    # set the wandb project where this run will be logged
-    project="NASA_turbo_fan",
-    name= "with 50 data points_{}".format(date_time),
-    # track hyperparameters and run metadata
-    config={
-    "learning_rate": 0.0001,
-    "architecture": "CNN",
-    "epochs": 100,
-    "loss": nn.BCELoss(),
-    "batch_size": 64,
-    "decay":1e-5,
-    'dropout': 0.5
-    }
-)
-config = wandb.config
-data_path = 'NASA_data_50.pt'
-label_path = 'NASA_label_50.pt'
-train_loader, test_loader = data_loading(data_path=data_path, label_path=label_path,batch_size= config.batch_size)
+    losses = [] # Stores the loss for each training batch
+    train_accs = [] # Stores the training accuracy after each epoch
+    test_accs = [] # Stores the testing accuracy after each epoch
 
-losses = [] # Stores the loss for each training batch
-train_accs = [] # Stores the training accuracy after each epoch
-test_accs = [] # Stores the testing accuracy after each epoch
+    # Create an instance of the CNN
+    model = SimpleCNN(dropout=config.dropout)
 
-# Create an instance of the CNN
-model = SimpleCNN(dropout=config.dropout)
+    # Loss and optimizer
+    loss = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.decay)
 
-# Loss and optimizer
-loss = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.decay)
+    model.to(device)
 
-model.to(device)
+    for epoch in range(config.epochs):
+        print(f'\nEpoch {epoch + 1}/{num_epochs}.')
+        start_time = time.perf_counter()
 
-num_epochs = 100
-for epoch in range(config.epochs):
-    print(f'\nEpoch {epoch + 1}/{num_epochs}.')
-    start_time = time.perf_counter()
+        model.train() # This is necessary because batch normalization behaves differently between training and evaluation
 
-    model.train() # This is necessary because batch normalization behaves differently between training and evaluation
+        for X, y in train_loader:
+            X, y = X.to(device), y.to(device) # Moves data to `device`
+            logits = model(X) # Computes the logits for the batch of images `X`
+            l = loss(logits, y) # Computes the loss given the `logits` and the class vector `y`
+            optimizer.zero_grad() # Zeroes the gradients stored in the model parameters
+            l.backward() # Computes the gradient of the loss `l` with respect to the model parameters
 
-    for X, y in train_loader:
-        X, y = X.to(device), y.to(device) # Moves data to `device`
-        logits = model(X) # Computes the logits for the batch of images `X`
-        l = loss(logits, y) # Computes the loss given the `logits` and the class vector `y`
-        optimizer.zero_grad() # Zeroes the gradients stored in the model parameters
-        l.backward() # Computes the gradient of the loss `l` with respect to the model parameters
+            optimizer.step() # Updates the model parameters based on the gradients stored inside them
 
-        optimizer.step() # Updates the model parameters based on the gradients stored inside them
+            train_loss = float(l)
+            losses.append(train_loss) # Stores the loss for this batch
 
-        train_loss = float(l)
-        losses.append(train_loss) # Stores the loss for this batch
+        model.eval() # This is necessary because batch normalization behaves differently between training and evaluation
+        train_acc = evaluate_metric(model, train_loader, correct)
+        train_accs.append(train_acc)
+        test_acc = evaluate_metric(model, test_loader, correct)
+        test_accs.append(test_acc)
+        metrics = {"train_loss": train_loss,
+                "train_acc": train_acc,
+                "test_acc": test_acc}
+        wandb.log(metrics)
 
-    model.eval() # This is necessary because batch normalization behaves differently between training and evaluation
-    train_acc = evaluate_metric(model, train_loader, correct)
-    train_accs.append(train_acc)
-    test_acc = evaluate_metric(model, test_loader, correct)
-    test_accs.append(test_acc)
-    metrics = {"train_loss": train_loss,
-               "train_acc": train_acc,
-               "test_acc": test_acc}
-    wandb.log(metrics)
+        end_time = time.perf_counter()
 
-    end_time = time.perf_counter()
+        print(f'Training accuracy: {train_accs[-1]}. Testing accuracy: {test_accs[-1]}. Duration: {end_time - start_time:.3f}s.') # Computes and displays training/testing dataset accuracy.
 
-    print(f'Training accuracy: {train_accs[-1]}. Testing accuracy: {test_accs[-1]}. Duration: {end_time - start_time:.3f}s.') # Computes and displays training/testing dataset accuracy.
+    plt.plot(losses) # Plots the loss for each training batch
+    plt.xlabel('Training batch')
+    plt.ylabel('Cross entropy loss')
+    plt.show()
 
-plt.plot(losses) # Plots the loss for each training batch
-plt.xlabel('Training batch')
-plt.ylabel('Cross entropy loss')
-plt.show()
+    plt.plot(list(map(lambda x: x.cpu(),train_accs)), label='Training accuracy')
+    plt.plot(list(map(lambda x: x.cpu(),test_accs)), label='Testing accuracy')
+    plt.legend(loc='best')
+    plt.xlabel('Epoch')
+    plt.show()
+    wandb.finish()
 
-plt.plot(list(map(lambda x: x.cpu(),train_accs)), label='Training accuracy')
-plt.plot(list(map(lambda x: x.cpu(),test_accs)), label='Testing accuracy')
-plt.legend(loc='best')
-plt.xlabel('Epoch')
-plt.show()
-wandb.finish()
-
-print('max test accuracy {}'.format(max(test_accs)))
+    print('max test accuracy {}'.format(max(test_accs)))
