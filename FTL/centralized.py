@@ -1,20 +1,40 @@
-%matplotlib inline
+# %matplotlib inline
 import matplotlib.pyplot as plt
 import torchvision
 from torch.utils.data import TensorDataset, random_split, DataLoader
 import torch.nn as nn
 import time
 import wandb
+from collenctions import OrderedDict
 from sklearn.metrics import accuracy_score
 from imblearn.over_sampling import SMOTE
 import torch
 from datetime import datetime
+from flwr.client import NumPyClient, ClientApp
 from time import gmtime, strftime
 
 now = datetime.now() # current date and time
 date_time = now.strftime("%d-%m-%Y_%H:%M:%S")
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'Using {device}.')
+
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="NASA_turbo_fan",
+    name= "with 50 data points_{}".format(date_time),
+    # track hyperparameters and run metadata
+    config={
+    "learning_rate": 0.0001,
+    "architecture": "CNN",
+    "epochs": 100,
+    "loss": nn.BCELoss(),
+    "batch_size": 64,
+    "decay":1e-5,
+    'dropout': 0.5
+    }
+)
+
+configuration  = wandb.config
 
 def data_loading(data_path, label_path, batch_size, train_ratio=0.8):
     data = torch.load(data_path)
@@ -40,9 +60,7 @@ def data_loading(data_path, label_path, batch_size, train_ratio=0.8):
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
     return DataLoader(train_dataset, batch_size=batch_size, shuffle=True), DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-data_path = 'NASA_data_50.pt'
-label_path = 'NASA_label_50.pt'
-data_loading(data_path=data_path, label_path=label_path,batch_size= 64)
+
 
 # Define the CNN architecture
 class SimpleCNN(nn.Module):
@@ -86,46 +104,18 @@ def evaluate_metric(model, data_iter, metric):
         c += metric(logits, y)
         n += len(y)
     return c*100 / n
-if __name__ == "__main__":
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="NASA_turbo_fan",
-        name= "with 50 data points_{}".format(date_time),
-        # track hyperparameters and run metadata
-        config={
-        "learning_rate": 0.0001,
-        "architecture": "CNN",
-        "epochs": 100,
-        "loss": nn.BCELoss(),
-        "batch_size": 64,
-        "decay":1e-5,
-        'dropout': 0.5
-        }
-    )
-    config = wandb.config
-    data_path = 'NASA_data_50.pt'
-    label_path = 'NASA_label_50.pt'
-    train_loader, test_loader = data_loading(data_path=data_path, label_path=label_path,batch_size= config.batch_size)
 
-    losses = [] # Stores the loss for each training batch
-    train_accs = [] # Stores the training accuracy after each epoch
-    test_accs = [] # Stores the testing accuracy after each epoch
-
-    # Create an instance of the CNN
-    model = SimpleCNN(dropout=config.dropout)
-
-    # Loss and optimizer
-    loss = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.decay)
-
-    model.to(device)
-
+def train(model, train_loader, config):
     for epoch in range(config.epochs):
-        print(f'\nEpoch {epoch + 1}/{num_epochs}.')
+        print(f'\nEpoch {epoch + 1}/{config.epochs}.')
         start_time = time.perf_counter()
 
+        loss = nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(net.parameters(), lr=config.learning_rate, weight_decay=config.decay)
+        
         model.train() # This is necessary because batch normalization behaves differently between training and evaluation
-
+        losses = [] # Stores the loss for each training batch
+        train_accs = [] # Stores the training accuracy after each epoch
         for X, y in train_loader:
             X, y = X.to(device), y.to(device) # Moves data to `device`
             logits = model(X) # Computes the logits for the batch of images `X`
@@ -137,31 +127,68 @@ if __name__ == "__main__":
 
             train_loss = float(l)
             losses.append(train_loss) # Stores the loss for this batch
+            model.eval() # This is necessary because batch normalization behaves differently between training and evaluation
+            train_acc = evaluate_metric(model, train_loader, correct)
+            train_accs.append(train_acc)
+            wandb.log({"train_loss": losses,
+                       "train_acc": train_accs,
+                       "Epoch": epoch + 1})
 
+def test(model, test_loader,  configuration):
+    loss = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(net.parameters(), lr=configuration.learning_rate, weight_decay=configuration.decay)
+    test_acc = []
+    for X, y in test_loader:    
         model.eval() # This is necessary because batch normalization behaves differently between training and evaluation
-        train_acc = evaluate_metric(model, train_loader, correct)
-        train_accs.append(train_acc)
         test_acc = evaluate_metric(model, test_loader, correct)
         test_accs.append(test_acc)
-        metrics = {"train_loss": train_loss,
-                "train_acc": train_acc,
-                "test_acc": test_acc}
-        wandb.log(metrics)
+        
+        wandb.log({"test_acc": test_acc})
 
         end_time = time.perf_counter()
 
         print(f'Training accuracy: {train_accs[-1]}. Testing accuracy: {test_accs[-1]}. Duration: {end_time - start_time:.3f}s.') # Computes and displays training/testing dataset accuracy.
 
-    plt.plot(losses) # Plots the loss for each training batch
-    plt.xlabel('Training batch')
-    plt.ylabel('Cross entropy loss')
-    plt.show()
+data_path = 'NASA_data_50.pt'
+label_path = 'NASA_label_50.pt'
+train_loader, test_loader = data_loading(data_path=data_path, label_path=label_path,batch_size= configuration.batch_size)
 
-    plt.plot(list(map(lambda x: x.cpu(),train_accs)), label='Training accuracy')
-    plt.plot(list(map(lambda x: x.cpu(),test_accs)), label='Testing accuracy')
-    plt.legend(loc='best')
-    plt.xlabel('Epoch')
-    plt.show()
-    wandb.finish()
+net = SimpleCNN(configuration.dropout).to(device)
 
-    print('max test accuracy {}'.format(max(test_accs)))
+
+net = SimpleCNN().to(device)
+
+class FlowerClient(NumPyClient):
+    def get_parameters(self, config):
+        return [val.cpu().numpy() for _, val in net.state_dict().items()]
+
+    def set_parameters(self, parameters):
+        params_dict = zip(net.state_dict().keys(), parameters)
+        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+        net.load_state_dict(state_dict, strict=True)
+
+    def fit(self, parameters, config):
+        self.set_parameters(parameters)
+        train(net, train_loader, config=configuration)
+        return self.get_parameters(config={}), len(train_loader.dataset), {}
+
+    def evaluate(self, parameters, config):
+        self.set_parameters(parameters)
+        loss, accuracy = test(net, test_loader, configuration=configuration)
+        return loss, len(test_loader.dataset), {"accuracy": accuracy}
+
+def client_fn(cid: str):
+    """Create and return an instance of Flower `Client`."""
+    return FlowerClient().to_client()
+
+
+# Flower ClientApp
+app = ClientApp(
+    client_fn=client_fn,)
+
+if __name__ == "__main__":
+    from flwr.client import start_client
+
+    start_client(
+        server
+    )
