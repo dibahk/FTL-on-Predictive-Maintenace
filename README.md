@@ -8,7 +8,7 @@ Microsoft Azure Predictive Maintenance dataset: https://www.kaggle.com/datasets/
 
 The files in this project are as below:
 
-1. <u> preprocesing_NASA_turbofan.ipynb </u>
+1. preprocesing_NASA_turbofan.ipynb
 
    This file is for preprocessing the NASA dataset into a multivariate time series dataset, where in each time frame the machine would fail or not.
 
@@ -16,4 +16,10 @@ The files in this project are as below:
 
      This file is for preprocessing the Microsoft Azure predictive maintenance dataset. The purpose of this file is to transform the raw data into a multivariate time series dataset where each time frame for each machine of the models would fail or not.
 
+3. FTL_one_class.ipynb
+
+  In this code, the experiment using the one-class approach for dividing the azure dataset has been done.
+
+4. FTL_unified_train.ipynb
+   In this code, the experiment using the unified approach for dividing the azure dataset has been done.
    
