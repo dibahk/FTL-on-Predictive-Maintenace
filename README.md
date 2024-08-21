@@ -18,9 +18,9 @@ The files in this project are as below:
 
 3. FTL_one_class.ipynb
 
-  In this code, the unified approach experiment has been done where one of the Azure's clients is used for transfer learning in each run.
+     In this code, the unified approach experiment has been done where one of the Azure's clients is used for transfer learning in each run.
 
 4. FTL_unified_train.ipynb
 
-   In this code, the experiment using the unified approach has been done where a subset of all Azure's clients is used for transfer learning.
+      In this code, the experiment using the unified approach has been done where a subset of all Azure's clients is used for transfer learning.
    
