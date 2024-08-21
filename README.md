@@ -8,7 +8,7 @@ Microsoft Azure Predictive Maintenance dataset: https://www.kaggle.com/datasets/
 
 The files in this project are as below:
 
-1. ****preprocesing_NASA_turbofan.ipynb****
+1. <u>preprocesing_NASA_turbofan.ipynb </u>
 
    This file is for preprocessing the NASA dataset into a multivariate time series dataset, where in each time frame the machine would fail or not.
 
