@@ -25,5 +25,8 @@ The files in this project are as below:
       In this code, the experiment using the unified approach has been done where a subset of all Azure's clients is used for transfer learning.
 
 To run the code first run the following line
-'pip install -r requirements.txt'
+
+`pip install -r requirements.txt`
+
+After that run *preprocesing_NASA_turbofan.ipynb* and *preprocesing_NASA_turbofan.ipynb* where they will produce the datasets for FTL. By running *FTL_one_class.ipynb* and *FTL_unified_train.ipynb* you will be able to see the whole FTL pipeline.
    
