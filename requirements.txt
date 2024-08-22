@@ -5,3 +5,5 @@ wandb
 scikit-learn
 imbalanced-learn
 flwr
+numpy
+pandas
