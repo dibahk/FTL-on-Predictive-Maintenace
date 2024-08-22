@@ -23,4 +23,7 @@ The files in this project are as below:
 4. FTL_unified_train.ipynb
 
       In this code, the experiment using the unified approach has been done where a subset of all Azure's clients is used for transfer learning.
+
+To run the code first run the following line
+'pip install -r requirements.txt'
    
